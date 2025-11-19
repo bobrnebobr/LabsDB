@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS employee (
     employee_id SERIAL PRIMARY KEY,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    phone VARCHAR(20),
-    email VARCHAR(50),
+    phone VARCHAR(20) UNIQUE,
+    email VARCHAR(50) UNIQUE,
     sex type_sex,
     position_id INT NOT NULL REFERENCES position(position_id) ON DELETE CASCADE
 );

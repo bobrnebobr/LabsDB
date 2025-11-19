@@ -1,161 +1,121 @@
-# Отчет по Лабораторной №1
+# 3 Лабораторная
 
-## 1. Описание области
+## 1. Анализ SELECT-запросов и выбор индексов
 
-Область: управление складами внутренней корпоративной системы компании.
-
-Допустим, есть какая-то IT-компания, которой в офисе нужны компьютеры, вентиляторы и прочие вещи. Есть склады, на которых
-хранятся запасы данного оборудования. Периодически необходимо проводить 
-инвентаризацию, проверять оборудование на работоспособность.
-
-Также, работники в случае необходимости могут оформить заказ на получение оборудование со склада.
-
-У оборудования есть поставщики, с которыми можно связаться по вопросам
-поставок, гарантий и подобных вещей.
-
-Оборудование может быть по-разному помещено на склады (складов несколько).
-
-Оборудование в случае неисправности нужно ремонтировать и это в бизнес-логике базы данных
-тоже необходимо отразить.
-
-База данных предназначена для эффективного управления оборудованием компании.
-Она позволяет:
-
-- отслеживать наличие оборудования
-- фиксировать заказы сотрудников
-- вести учет поставщиков
-- контролировать состояние оборудования
-- отслеживать перемещения оборудования
-- соблюдать целостность и достоверность данных
-
-# 2. Код
-
+### Запросы из ЛР 2
 ```sql
-CREATE TYPE type_sex AS ENUM ('Мужской', 'Женский');
+-- 1. Последние готовые к использованию единицы оборудования
+SELECT equipment_id, name, purchase_date, status
+FROM equipment
+WHERE status = 'Ready to use'
+ORDER BY purchase_date DESC
+LIMIT 5;
 
-CREATE TYPE type_equipment_status AS ENUM ('Пригодно для использования', 'Необходим ремонт', 'Подлежит утилизации', 'Утеряно');
+-- 2. Общее количество оборудования по типам
+SELECT et.type_name, SUM(we.quantity) AS total_count
+FROM warehouse_equipment we
+JOIN equipment e ON we.equipment_id = e.equipment_id
+JOIN equipment_type et ON e.type_id = et.type_id
+GROUP BY et.type_name
+ORDER BY total_count DESC;
 
-CREATE TYPE equipment_maintenance_type AS ENUM ('Плановый осмотр', 'Ремонт', 'Инспекция');
+-- 3. Склады с большим количеством оборудования
+SELECT w.name, SUM(we.quantity) AS total_count
+FROM warehouse_equipment we
+JOIN warehouse w ON we.warehouse_id = w.warehouse_id
+GROUP BY w.name
+HAVING SUM(we.quantity) > 10
+ORDER BY total_count DESC;
 
-CREATE TABLE IF NOT EXISTS position (
-    position_id SERIAL PRIMARY KEY,
-    position_name VARCHAR(50) NOT NULL UNIQUE,
-    description TEXT
+-- 4. Сотрудники, обслуживавшие компрессоры
+SELECT DISTINCT e.first_name, e.last_name
+FROM employee e
+WHERE EXISTS (
+    SELECT 1
+    FROM maintenance m
+    JOIN equipment eq ON m.equipment_id = eq.equipment_id
+    JOIN equipment_type et ON eq.type_id = et.type_id
+    WHERE m.employee_id = e.employee_id
+      AND et.type_name = 'Компрессор'
 );
 
-CREATE TABLE IF NOT EXISTS employee (
-    employee_id SERIAL PRIMARY KEY,
-    first_name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50) NOT NULL,
-    phone VARCHAR(20),
-    email VARCHAR(50),
-    sex type_sex,
-    position_id INT NOT NULL REFERENCES position(position_id)
-);
-
-CREATE TABLE IF NOT EXISTS warehouse (
-    warehouse_id SERIAL PRIMARY KEY,
-    location VARCHAR(100) NOT NULL UNIQUE,
-    name VARCHAR(100) NOT NULL,
-    capacity INT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS supplier (
-    supplier_id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    contact_name VARCHAR(100),
-    phone_number VARCHAR(20),
-    email VARCHAR(50)
-);
-
-CREATE TABLE IF NOT EXISTS equipment_type (
-    type_id SERIAL PRIMARY KEY,
-    type_name VARCHAR(50) NOT NULL,
-    description TEXT
-);
-
-CREATE TABLE IF NOT EXISTS equipment (
-    equipment_id SERIAL PRIMARY KEY,
-    type_id INT NOT NULL REFERENCES equipment_type(type_id),
-    supplier_id INT REFERENCES supplier(supplier_id),
-    purchase_date DATE NOT NULL,
-    warranty_end DATE,
-    status type_equipment_status NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS "order" (
-    order_id SERIAL PRIMARY KEY,
-    employee_id INT NOT NULL REFERENCES employee(employee_id),
-    order_date DATE NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS order_equipment (
-    order_id INT NOT NULL REFERENCES "order"(order_id),
-    equipment_id INT NOT NULL REFERENCES equipment(equipment_id),
-    quantity INT NOT NULL CHECK(quantity > 0),
-    PRIMARY KEY (order_id, equipment_id)
-);
-
-CREATE TABLE IF NOT EXISTS warehouse_equipment (
-    warehouse_equipment_id SERIAL PRIMARY KEY,
-    warehouse_id INT NOT NULL REFERENCES warehouse(warehouse_id),
-    equipment_id INT NOT NULL REFERENCES equipment(equipment_id),
-    quantity INT NOT NULL CHECK (quantity > 0),
-    UNIQUE (warehouse_id, equipment_id)
-);
-
-CREATE TABLE IF NOT EXISTS maintenance (
-    maintenance_id SERIAL PRIMARY KEY,
-    equipment_id INT NOT NULL REFERENCES equipment(equipment_id),
-    employee_id INT NOT NULL REFERENCES employee(employee_id),
-    maintenance_type equipment_maintenance_type NOT NULL,
-    maintenance_date DATE,
-    description TEXT
-);
-
-CREATE TABLE IF NOT EXISTS equipment_movement (
-    movement_id SERIAL PRIMARY KEY,
-    equipment_id INT NOT NULL REFERENCES equipment(equipment_id),
-    from_warehouse_if INT NOT NULL REFERENCES warehouse(warehouse_id),
-    to_warehouse_if INT NOT NULL REFERENCES warehouse(warehouse_id),
-    movement_date DATE NOT NULL ,
-    quantity INT NOT NULL CHECK (quantity > 0)
-);
+-- 5. Оборудование с истекшей гарантией
+WITH expired AS (
+    SELECT equipment_id, name, purchase_date, warranty_end
+    FROM equipment
+    WHERE warranty_end < CURRENT_DATE
+)
+SELECT * FROM expired
+ORDER BY purchase_date;
 ```
 
-# 3. Схема
+### Используемые поля
 
-![img.png](img.png)
+* status, purchase_date - фильтр и сортировка
+* equipment_id, warehouse_id, type_id — связи между таблицами
+* type_name - поиск по имени типа
+* warranty_end - поиск по дате
 
-# 4. Обоснование 3-ей нормальной формы
+## 2. Созданные индексы
 
-Грубо говоря, 3-я НФ требует, чтобы:
-1. Каждая таблица отражала одну сущность
-2. Все неключевые поля зависели не друг от друга, а от первичного ключа
+```sql
+-- 1. Для фильтра + сортировки
+CREATE INDEX idx_equipment_status_purchase
+ON equipment(status, purchase_date);
 
-Поэтому, например, у меня в базе данных отделены employee и position
+-- 2. Для JOIN по складу/оборудованию
+CREATE INDEX idx_we_equipment
+ON warehouse_equipment(equipment_id);
 
-# 5. Теоретические вопросы
+CREATE INDEX idx_we_warehouse
+ON warehouse_equipment(warehouse_id);
 
-## 1. Почему плохо нарушать 3-ю НФ?
+-- 3. Для поиска типа оборудования
+CREATE INDEX idx_equipment_type_name
+ON equipment_type(type_name);
 
-- дублирование данных
-- сложно обновлять и поддерживать
-- сложности в согласовании
-- экономим память
+-- 4. Для запросов по maintenance
+CREATE INDEX idx_maintenance_employee
+ON maintenance(employee_id);
 
-## 2. Когда нарушение 3НФ допустимо?
+CREATE INDEX idx_maintenance_equipment
+ON maintenance(equipment_id);
 
-Когда нужна скорость. 
+-- 5. Для поиска оборудования с истекшей гарантией
+CREATE INDEX idx_equipment_warranty_end
+ON equipment(warranty_end);
+```
 
-Много соединений таблиц занимают много времени. В моей
-лабораторной есть пример косвенного нарушения 3-ей НФ. В таблице equipment есть поле status.
-Вообще правильно было бы отдельно создать таблицу с историей проверки оборудования
-и там отображать статусы, так как сейчас это поле больше зависит от проверки последней, но решено было
-пренебречь в угоду производительности и чаще всего нужна информация только о текущем статусе. Просто для удобства.
+### Краткое обоснование
 
-## 3. Почему внешние ключи в бд важны и к каким последствиям может привести их отсутствие?
+* B-tree подходит почти для всех условий =, <, ORDER BY
+* Индексы ускоряют фильтрацию, связи таблиц и поиск по дате/типу
 
-- поддержка связи между таблицами четко регламентированной
-- гарантия целостности данных (не сослаться на несуществующую бд)
-- легкое поддержание базы
+
+## 3. Влияние индексов на операции INSERT / UPDATE / DELETE
+
+* INSERT - немного медленнее, т.к. индекс тоже обновляется
+* UPDATE - замедляется только если изменяется поле, входящее в индекс
+* DELETE - требуется удалить строку и в индексе, что тоже немного замедляет
+
+Индексы не мешают обычным модификациям и полезны для чтения
+
+## 4. Ответы на вопросы
+
+**1. Почему не стоит создавать индекс на каждый столбец?**
+
+Индексы занимают место и замедляют вставки/обновлении
+
+**2. Когда индекс может ухудшить работу?**
+
+При частых изменениях данных - из-за постоянного пересчёта индекса
+
+**3. Что такое селективность?**
+
+Это доля уникальных значений. Чем селективнее столбец - тем полезнее индекс
+
+**4. Что такое кардинальность?**
+
+Количество уникальных значений
+
+Высокая кардинальность => индекс эффективен, низкая => почти бесполезен
