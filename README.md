@@ -52,7 +52,7 @@ ORDER BY purchase_date;
 ### Используемые поля
 
 * status, purchase_date - фильтр и сортировка
-* equipment_id, warehouse_id, type_id — связи между таблицами
+* equipment_id, warehouse_id, type_id - связи между таблицами
 * type_name - поиск по имени типа
 * warranty_end - поиск по дате
 
