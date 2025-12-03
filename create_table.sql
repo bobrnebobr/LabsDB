@@ -3,7 +3,6 @@ CREATE TYPE type_sex AS ENUM ('Male', 'Female');
 CREATE TYPE type_equipment_status AS ENUM ('Ready to use', 'Need repair', 'Subject to disposal', 'Lost');
 
 CREATE TYPE equipment_maintenance_type AS ENUM ('Scheduled inspection', 'Repair', 'Inspection');
-
 CREATE TABLE IF NOT EXISTS position (
     position_id SERIAL PRIMARY KEY,
     position_name VARCHAR(50) NOT NULL UNIQUE,

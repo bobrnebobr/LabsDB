@@ -1,0 +1,23 @@
+BEGIN
+ pg_advisory_lock 
+------------------
+ 
+(1 row)
+
+ pg_advisory_lock 
+------------------
+ 
+(1 row)
+
+UPDATE 1
+ pg_advisory_unlock 
+--------------------
+ t
+(1 row)
+
+ pg_advisory_unlock 
+--------------------
+ t
+(1 row)
+
+COMMIT
